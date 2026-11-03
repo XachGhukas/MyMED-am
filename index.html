@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyMed բժշկական կլինիկական համակարգ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; }
+            .print-container { box-shadow: none !important; border: none !important; position: absolute; inset: 0; background: white; z-index: 100; padding: 20px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased bg-slate-100 text-slate-800">
+
+    <!-- TOP CLINIC HEADER -->
+    <header class="sticky top-0 z-40 bg-slate-900 text-white shadow-md no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="switchTab('doctors')">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-2xl shadow-lg">
+                        <i class="fa-solid fa-hospital-user"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-2xl font-extrabold tracking-tight text-white">MyMED </span>
+                            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">PRO EMR v1.0</span>
+                        </div>
+                        <p class="text-xs text-slate-400 font-medium">Թվային բժշկական կառավարման համակարգ</p>
+                    </div>
+                </div>
+
+                <!-- GLOBAL SEARCH -->
+                <div class="hidden md:flex flex-1 max-w-md mx-8 relative">
+                    <input type="text" id="globalSearch" oninput="handleGlobalSearch(this.value)" 
+                        placeholder="Որոնել բժիշկ, բուժառու և այլն..." 
+                        class="w-full pl-10 pr-4 py-2 text-sm bg-slate-800 border border-slate-700 text-white rounded-xl focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400"></i>
+                </div>
+
+                <!-- ACTIONS & SYNC -->
+                <div class="flex items-center gap-2">
+                    <button onclick="exportDatabase()" title="Պահպանել բազայի կրկնօրինակը ֆայլի մեջ (Համակարգիչ <-> Հեռախոս համաժամացում)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-download text-emerald-400"></i> <span class="hidden lg:inline">Պահպանել ֆայլը</span>
+                    </button>
+                    <button onclick="document.getElementById('importFile').click()" title="Բեռնել տվյալները ֆայլից" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-upload text-sky-400"></i> <span class="hidden lg:inline">Բեռնել ֆայլից</span>
+                    </button>
+                    <input type="file" id="importFile" accept=".json" onchange="importDatabase(event)" class="hidden">
+                </div>
+            </div>
+
+            <!-- NAVIGATION TABS -->
+            <div class="flex space-x-1 border-t border-slate-800 py-2 overflow-x-auto">
+                <button id="tab-btn-doctors" onclick="switchTab('doctors')" class="nav-tab text-emerald-400 bg-slate-800 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+                    <i class="fa-solid fa-user-doctor"></i> Բժիշկների ցանկ
+                </button>
+                <button id="tab-btn-appointments" onclick="switchTab('appointments')" class="nav-tab text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+                    <i class="fa-solid fa-calendar-check text-teal-400"></i> Գրանցված բուժառուներ
+                </button>
+                <button id="tab-btn-archive" onclick="switchTab('archive')" class="nav-tab text-slate-300 hover:bg-slate-800 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+                    <i class="fa-solid fa-box-archive text-amber-400"></i> Բուժառուների արխիվ և բժշկական պատմություն
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- STATS BANNER -->
+    <div class="bg-gradient-to-r from-emerald-900 to-teal-900 text-white py-4 px-4 no-print shadow-inner">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-solid fa-shield-heart text-emerald-400"></i> Օպերատիվ վահանակ</h1>
+            <div class="flex items-center gap-4 bg-black/20 px-4 py-2 rounded-xl text-xs">
+                <div>Գրանցված բժիշկներ՝ <span id="statDoctorsCount" class="font-bold text-emerald-300">0</span></div>
+                <div class="border-l border-white/20 pl-4">Ակտիվ բուժառուներ՝ <span id="statPatientsCount" class="font-bold text-teal-300">0</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTENT -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- TAB 1: DOCTORS -->
+        <section id="tab-section-doctors" class="app-section space-y-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Կլինիկայի բժշկական անձնակազմ</h2>
+                    <p class="text-xs text-slate-500">Բացե՛ք բժշկի անձնական դաշտը՝ նրա կցված բուժառուներին և այցերը տեսնելու համար։</p>
+                </div>
+                <button onclick="openAddDoctorModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> Ավելացնել բժիշկ
+                </button>
+            </div>
+
+            <div id="doctorsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div id="emptyDoctorsState" class="hidden text-center py-16 bg-white rounded-3xl border border-dashed border-slate-300">
+                <i class="fa-solid fa-user-doctor text-4xl text-slate-300 mb-2"></i>
+                <h3 class="text-base font-bold text-slate-700">Բժիշկներ գրանցված չեն</h3>
+                <button onclick="openAddDoctorModal()" class="mt-3 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Ավելացնել առաջին բժշկին</button>
+            </div>
+        </section>
+
+        <!-- TAB 2: APPOINTMENTS & PATIENTS -->
+        <section id="tab-section-appointments" class="app-section hidden space-y-6">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Գրանցումներ և հիվանդների հոսք</h2>
+                    <p class="text-xs text-slate-500">Գրանցեք նոր բուժառու և կցեք տվյալները համապատասխան բժշկին։</p>
+                </div>
+                <button onclick="openAddPatientModal()" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-hospital-user"></i> Նոր գրանցում (բուժառու)
+                </button>
+            </div>
+
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b text-[11px] font-bold text-slate-500 uppercase">
+                            <th class="px-4 py-3">Բուժառու</th>
+                            <th class="px-4 py-3">Ամսաթիվ և ժամ</th>
+                            <th class="px-4 py-3">Կցված բժիշկ</th>
+                            <th class="px-4 py-3">Կարգավիճակ</th>
+                            <th class="px-4 py-3 text-right">Գործողություն</th>
+                        </tr>
+                    </thead>
+                    <tbody id="appointmentsTableBody"></tbody>
+                </table>
+            </div>
+            <div id="emptyAppointmentsState" class="hidden text-center py-12 bg-white rounded-2xl border text-slate-400">Նախագրանցված բուժառուներ չկան</div>
+        </section>
+
+        <!-- TAB 3: ARCHIVE & PERMANENT HISTORY -->
+        <section id="tab-section-archive" class="app-section hidden space-y-6">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">Բժշկական արխիվ և պատմություն</h2>
+                <p class="text-xs text-slate-500">Բոլոր ավարտված ընդունելությունները, նշանակումները և PDF հաշվետվությունները պահվում են ապահով։</p>
+            </div>
+            <div id="archiveGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            <div id="emptyArchiveState" class="hidden text-center py-12 bg-white rounded-2xl border text-slate-400">Արխիվը դատարկ է</div>
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: ADD / EDIT DOCTOR -->
+    <div id="doctorModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b mb-4">
+                <h3 class="font-bold text-base text-slate-900" id="doctorModalTitle">Ավելացնել բժիշկ</h3>
+                <button onclick="closeDoctorModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSaveDoctor(event)" class="space-y-4">
+                <input type="hidden" id="editDoctorId">
+                <div><label class="block text-xs font-semibold mb-1">Անուն Ազգանուն *</label><input type="text" id="docName" required placeholder="դոկտ․ Արմեն Վարդանյան" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                <div><label class="block text-xs font-semibold mb-1">Մասնագիտություն *</label><input type="text" id="docSpecialty" required placeholder="Սրտաբան / Թերապևտ" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-semibold mb-1">Բժշկական սենյակ</label><input type="text" id="docRoom" placeholder="Սենյակ 302" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                    <div><label class="block text-xs font-semibold mb-1">Հեռախոսահամար</label><input type="text" id="docPhone" placeholder="+374 ..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeDoctorModal()" class="px-4 py-2 border rounded-xl text-xs">Չեղարկել</button>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow">Պահպանել բժշկի տվյալները</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: ADD / EDIT PATIENT / APPOINTMENT -->
+    <div id="patientModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden no-print">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b mb-4">
+                <h3 class="font-bold text-base text-slate-900" id="patientModalTitle">Բուժառուի գրանցում</h3>
+                <button onclick="closePatientModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleSavePatient(event)" class="space-y-4">
+                <input type="hidden" id="editPatientId">
+                <div><label class="block text-xs font-semibold mb-1">Անուն Ազգանուն *</label><input type="text" id="patName" required placeholder="Անի Մկրտչյան" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-semibold mb-1">Հեռախոսահամար *</label><input type="text" id="patPhone" required placeholder="+374 ..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                    <div><label class="block text-xs font-semibold mb-1">Ծննդյան թիվ</label><input type="date" id="patBirth" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-semibold mb-1">Ամսաթիվ *</label><input type="date" id="patDate" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                    <div><label class="block text-xs font-semibold mb-1">Ժամ *</label><input type="time" id="patTime" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Կցել բժշկին *</label>
+                    <select id="patDoctorSelect" required class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 font-semibold"></select>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closePatientModal()" class="px-4 py-2 border rounded-xl text-xs">Չեղարկել</button>
+                    <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow">Գրանցել հիվանդի տվյալները</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 3: DOCTOR'S OFFICE / CONSULTATION & EXAMINATION MODAL -->
+    <div id="consultationModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between border-b pb-4 mb-4 no-print">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold"><i class="fa-solid fa-stethoscope"></i></div>
+                    <div>
+                        <h3 class="font-bold text-base text-slate-900" id="consPatientName">Բուժառուի ընդունելություն</h3>
+                        <p class="text-xs text-slate-500" id="consDoctorInfo">Բժիշկ՝ ...</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="printPrescriptionPDF()" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"><i class="fa-solid fa-print"></i> PDF Տպել</button>
+                    <button onclick="closeConsultationModal()" class="text-slate-400 hover:text-slate-600 p-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+            </div>
+
+            <!-- PRINTABLE MEDICAL REPORT CONTAINER -->
+            <div id="printableReport" class="print-container space-y-4 p-2">
+                <div class="border-b pb-3 flex justify-between items-center">
+                    <div>
+                        <h2 class="font-extrabold text-base text-slate-900">«MYMED» ԿԼԻՆԻԿԱԿԱՆ ԿԵՆՏՐՈՆ</h2>
+                        <p class="text-[11px] text-slate-500">Ախտորոշման և նշանակումների թերթիկ</p>
+                    </div>
+                    <div class="text-right text-xs text-slate-500" id="consReportDate">Ամսաթիվ՝ ...</div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl text-xs">
+                    <div><strong>Բուժառու՝</strong> <span id="reportPatName">-</span></div>
+                    <div><strong>Հեռախոս՝</strong> <span id="reportPatPhone">-</span></div>
+                    <div><strong>Բժիշկ՝</strong> <span id="reportDocName">-</span></div>
+                    <div><strong>Ամսաթիվ / Ժամ՝</strong> <span id="reportTime">-</span></div>
+                </div>
+
+                <div class="space-y-3 no-print">
+                    <div><label class="block text-xs font-semibold mb-1">Գանգատներ / Անամնեզ</label><textarea id="consComplaints" rows="2" placeholder="Բուժառուի գանգատները..." class="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50"></textarea></div>
+                    <div><label class="block text-xs font-semibold mb-1">Կլինիկական ախտորոշում</label><input type="text" id="consDiagnosis" placeholder="օր․ Սուր բրոնխիտ / Հիպերտոնիկ կրիզ" class="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50"></div>
+                    <div><label class="block text-xs font-semibold mb-1">Նշանակումներ, դեղորայք և ուղղորդումներ</label><textarea id="consPrescription" rows="3" placeholder="Դեղորայքային բուժում, հետազոտություններ..." class="w-full px-3 py-2 text-xs border rounded-xl bg-slate-50"></textarea></div>
+                </div>
+
+                <div class="print-only hidden space-y-3 text-xs">
+                    <div><strong>Գանգատներ՝</strong> <span id="printComplaints">-</span></div>
+                    <div><strong>Ախտորոշում՝</strong> <span id="printDiagnosis">-</span></div>
+                    <div><strong>Նշանակումներ՝</strong> <span id="printPrescription">-</span></div>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-3 border-t flex justify-end gap-2 no-print">
+                <button onclick="closeConsultationModal()" class="px-4 py-2 border rounded-xl text-xs font-semibold">Փակել</button>
+                <button onclick="saveAndArchiveConsultation()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-xs font-bold shadow"><i class="fa-solid fa-box-archive mr-1"></i> Ավարտել և արխիվացնել</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700">
+            <div class="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm"><i class="fa-solid fa-check"></i></div>
+            <div id="toastMessage" class="text-xs font-semibold">Գործողությունը հաջողվեց:</div>
+        </div>
+    </div>
+
+    <!-- CORE JAVASCRIPT LOGIC -->
+    <script>
+        const STORAGE_KEY = 'medarchive_system_v10';
+        
+        let clinicData = {
+            doctors: [],
+            patients: [],
+            archive: []
+        };
+
+        let currentConsPatientId = null;
+
+        window.onload = function() {
+            loadFromStorage();
+            renderAll();
+        };
+
+        function saveToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(clinicData));
+        }
+
+        function loadFromStorage() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try { clinicData = JSON.parse(saved); } catch(e) { seedDemo(); }
+            } else {
+                seedDemo();
+            }
+        }
+
+        function seedDemo() {
+            clinicData = {
+                doctors: [
+                    { id: 'doc_1', name: 'բժիշկ Արմեն Վարդանյան', specialty: 'Սրտաբան', room: 'Սենյակ 204', phone: '+374 91 234567' },
+                    { id: 'doc_2', name: 'բժիշկ Նունե Սարգսյան', specialty: 'Թերապևտ', room: 'Սենյակ 108', phone: '+374 93 987654' }
+                ],
+                patients: [
+                    { id: 'pat_1', name: 'Անի Մկրտչյան', phone: '+374 99 112233', birth: '1992-05-14', date: '2026-11-04', time: '10:00', doctorId: 'doc_1', status: 'Նախագրանցված', complaints: '', diagnosis: '', prescription: '' }
+                ],
+                archive: []
+            };
+            saveToStorage();
+        }
+
+        // SYNC BACKUP (EXPORT & IMPORT JSON)
+        function exportDatabase() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(clinicData, null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `MedArchive_Backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(dl);
+            dl.click();
+            dl.remove();
+            showToast('Բազան հաջողությամբ պահպանվեց ֆայլի մեջ:');
+        }
+
+        function importDatabase(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    clinicData = JSON.parse(e.target.result);
+                    saveToStorage();
+                    renderAll();
+                    showToast('Տվյալները հաջողությամբ համաժամեցվեցին!');
+                } catch(err) { showToast('Սխալ կամ վնասված ֆայլ', 'error'); }
+            };
+            reader.readAsText(file);
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.nav-tab').forEach(b => {
+                b.classList.remove('text-emerald-400', 'bg-slate-800');
+                b.classList.add('text-slate-300');
+            });
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+            if (activeBtn) {
+                activeBtn.classList.add('text-emerald-400', 'bg-slate-800');
+                activeBtn.classList.remove('text-slate-300');
+            }
+            ['doctors', 'appointments', 'archive'].forEach(t => {
+                document.getElementById(`tab-section-${t}`).classList.add('hidden');
+            });
+            document.getElementById(`tab-section-${tabName}`).classList.remove('hidden');
+            renderAll();
+        }
+
+        function renderAll() {
+            updateStats();
+            renderDoctors();
+            renderAppointments();
+            renderArchive();
+            populateDoctorSelects();
+        }
+
+        function updateStats() {
+            document.getElementById('statDoctorsCount').innerText = clinicData.doctors.length;
+            document.getElementById('statPatientsCount').innerText = clinicData.patients.length;
+        }
+
+        // DOCTORS MODUL
+        function openAddDoctorModal() {
+            document.getElementById('editDoctorId').value = '';
+            document.getElementById('docName').value = '';
+            document.getElementById('docSpecialty').value = '';
+            document.getElementById('docRoom').value = '';
+            document.getElementById('docPhone').value = '';
+            document.getElementById('doctorModalTitle').innerText = 'Ավելացնել բժիշկ';
+            document.getElementById('doctorModal').classList.remove('hidden');
+        }
+        function closeDoctorModal() { document.getElementById('doctorModal').classList.add('hidden'); }
+
+        function handleSaveDoctor(e) {
+            e.preventDefault();
+            const id = document.getElementById('editDoctorId').value;
+            const name = document.getElementById('docName').value.trim();
+            const specialty = document.getElementById('docSpecialty').value.trim();
+            const room = document.getElementById('docRoom').value.trim();
+            const phone = document.getElementById('docPhone').value.trim();
+
+            if (id) {
+                const doc = clinicData.doctors.find(d => d.id === id);
+                if (doc) Object.assign(doc, { name, specialty, room, phone });
+            } else {
+                clinicData.doctors.push({ id: 'doc_' + Date.now(), name, specialty, room, phone });
+            }
+            saveToStorage();
+            closeDoctorModal();
+            renderAll();
+            showToast('Բժշկի տվյալները պահպանվեցին:');
+        }
+
+        function renderDoctors() {
+            const grid = document.getElementById('doctorsGrid');
+            const empty = document.getElementById('emptyDoctorsState');
+            grid.innerHTML = '';
+            if (clinicData.doctors.length === 0) { empty.classList.remove('hidden'); return; }
+            empty.classList.add('hidden');
+
+            clinicData.doctors.forEach(doc => {
+                const assignedPatients = clinicData.patients.filter(p => p.doctorId === doc.id);
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl p-5 border shadow-sm hover:shadow-md transition flex flex-col justify-between";
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg"><i class="fa-solid fa-user-doctor"></i></div>
+                            <div>
+                                <h3 class="font-bold text-sm text-slate-900">${doc.name}</h3>
+                                <p class="text-xs text-emerald-600 font-semibold">${doc.specialty}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-1 text-xs text-slate-500 border-t pt-2 mb-3">
+                            <div><i class="fa-solid fa-door-open text-slate-400 mr-1"></i> ${doc.room || 'Սենյակ նշված չի'}</div>
+                            <div><i class="fa-solid fa-phone text-slate-400 mr-1"></i> ${doc.phone || 'Հեռախոս չկա'}</div>
+                            <div class="font-semibold text-slate-700 mt-1">Այսօրվա հիվանդները՝ ${assignedPatients.length}</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-2 border-t">
+                        <button onclick="deleteDoctor('${doc.id}')" class="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-xs font-semibold"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function deleteDoctor(id) {
+            clinicData.doctors = clinicData.doctors.filter(d => d.id !== id);
+            saveToStorage();
+            renderAll();
+            showToast('Բժշկի տվյալները՝ ջնջվեցին:');
+        }
+
+        // PATIENTS & APPOINTMENTS MODUL
+        function populateDoctorSelects() {
+            const select = document.getElementById('patDoctorSelect');
+            select.innerHTML = '';
+            if (clinicData.doctors.length === 0) {
+                select.innerHTML = `<option value="">Գրանցեք բժիշկ</option>`;
+                return;
+            }
+            clinicData.doctors.forEach(doc => {
+                select.innerHTML += `<option value="${doc.id}">${doc.name} (${doc.specialty})</option>`;
+            });
+        }
+
+        function openAddPatientModal() {
+            document.getElementById('editPatientId').value = '';
+            document.getElementById('patName').value = '';
+            document.getElementById('patPhone').value = '';
+            document.getElementById('patBirth').value = '';
+            document.getElementById('patDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('patTime').value = '10:00';
+            populateDoctorSelects();
+            document.getElementById('patientModal').classList.remove('hidden');
+        }
+        function closePatientModal() { document.getElementById('patientModal').classList.add('hidden'); }
+
+        function handleSavePatient(e) {
+            e.preventDefault();
+            const name = document.getElementById('patName').value.trim();
+            const phone = document.getElementById('patPhone').value.trim();
+            const birth = document.getElementById('patBirth').value;
+            const date = document.getElementById('patDate').value;
+            const time = document.getElementById('patTime').value;
+            const doctorId = document.getElementById('patDoctorSelect').value;
+
+            clinicData.patients.push({
+                id: 'pat_' + Date.now(),
+                name, phone, birth, date, time, doctorId,
+                status: 'Գրանցված',
+                complaints: '', diagnosis: '', prescription: ''
+            });
+            saveDataToStorage();
+            closePatientModal();
+            renderAll();
+            showToast('Բուժառուն գրանցվեց:');
+        }
+
+        function renderAppointments() {
+            const tbody = document.getElementById('appointmentsTableBody');
+            const empty = document.getElementById('emptyAppointmentsState');
+            tbody.innerHTML = '';
+            if (clinicData.patients.length === 0) { empty.classList.remove('hidden'); return; }
+            empty.classList.add('hidden');
+
+            clinicData.patients.forEach(pat => {
+                const doc = clinicData.doctors.find(d => d.id === pat.doctorId) || { name: 'Կցված չէ' };
+                tbody.innerHTML += `
+                    <tr class="border-b hover:bg-slate-50 text-xs">
+                        <td class="px-4 py-3 font-bold text-slate-900">${pat.name}<br><span class="text-[10px] text-slate-500 font-normal">${pat.phone}</span></td>
+                        <td class="px-4 py-3">${pat.date} <span class="font-bold text-emerald-600">${pat.time}</span></td>
+                        <td class="px-4 py-3 font-semibold text-slate-700">${doc.name}</td>
+                        <td class="px-4 py-3"><span class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full font-bold text-[10px]">${pat.status}</span></td>
+                        <td class="px-4 py-3 text-right">
+                            <button onclick="openConsultation('${pat.id}')" class="bg-emerald-600 text-white px-3 py-1.5 rounded-xl font-bold shadow hover:bg-emerald-700"><i class="fa-solid fa-stethoscope mr-1"></i> Ընդունելություն</button>
+                            <button onclick="deletePatient('${pat.id}')" class="text-red-500 hover:text-red-700 p-1.5 ml-1"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function deletePatient(id) {
+            clinicData.patients = clinicData.patients.filter(p => p.id !== id);
+            saveDataToStorage();
+            renderAll();
+            showToast('Հեռացվեց:');
+        }
+
+        // CONSULTATION & DOCTOR OFFICE MODUL
+        function openConsultation(patId) {
+            currentConsPatientId = patId;
+            const pat = clinicData.patients.find(p => p.id === patId);
+            const doc = clinicData.doctors.find(d => d.id === pat.doctorId) || { name: 'Բժիշկ' };
+
+            document.getElementById('consPatientName').innerText = pat.name;
+            document.getElementById('consDoctorInfo').innerText = `Բժիշկ՝ ${doc.name} (${doc.specialty})`;
+            document.getElementById('consReportDate').innerText = `Ամսաթիվ՝ ${pat.date} ${pat.time}`;
+
+            document.getElementById('reportPatName').innerText = pat.name;
+            document.getElementById('reportPatPhone').innerText = pat.phone;
+            document.getElementById('reportDocName').innerText = doc.name;
+            document.getElementById('reportTime').innerText = `${pat.date} / ${pat.time}`;
+
+            document.getElementById('consComplaints').value = pat.complaints || '';
+            document.getElementById('consDiagnosis').value = pat.diagnosis || '';
+            document.getElementById('consPrescription').value = pat.prescription || '';
+
+            document.getElementById('consultationModal').classList.remove('hidden');
+        }
+
+        function closeConsultationModal() { document.getElementById('consultationModal').classList.add('hidden'); }
+
+        function saveAndArchiveConsultation() {
+            const pat = clinicData.patients.find(p => p.id === currentConsPatientId);
+            if (!pat) return;
+
+            pat.complaints = document.getElementById('consComplaints').value;
+            pat.diagnosis = document.getElementById('consDiagnosis').value;
+            pat.prescription = document.getElementById('consPrescription').value;
+            pat.status = 'Ավարտված';
+
+            // Move to permanent archive
+            clinicData.archive.unshift({ ...pat, archivedAt: new Date().toLocaleString('hy-AM') });
+            clinicData.patients = clinicData.patients.filter(p => p.id !== currentConsPatientId);
+
+            saveDataToStorage();
+            closeConsultationModal();
+            renderAll();
+            showToast('Ընդունելությունն ավարտվեց և արխիվացվեց պատմության մեջ:');
+        }
+
+        function printPrescriptionPDF() {
+            document.getElementById('printComplaints').innerText = document.getElementById('consComplaints').value || '-';
+            document.getElementById('printDiagnosis').innerText = document.getElementById('consDiagnosis').value || '-';
+            document.getElementById('printPrescription').innerText = document.getElementById('consPrescription').value || '-';
+            window.print();
+        }
+
+        // ARCHIVE & HISTORY
+        function renderArchive() {
+            const grid = document.getElementById('archiveGrid');
+            const empty = document.getElementById('emptyArchiveState');
+            grid.innerHTML = '';
+            if (clinicData.archive.length === 0) { empty.classList.remove('hidden'); return; }
+            empty.classList.add('hidden');
+
+            clinicData.archive.forEach(item => {
+                const doc = clinicData.doctors.find(d => d.id === item.doctorId) || { name: '-' };
+                grid.innerHTML += `
+                    <div class="bg-white rounded-2xl p-4 border shadow-sm space-y-2 text-xs">
+                        <div class="flex justify-between items-center border-b pb-2">
+                            <span class="font-bold text-slate-900 text-sm">${item.name}</span>
+                            <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Արխիվացված</span>
+                        </div>
+                        <div><strong>Բժիշկ՝</strong> ${doc.name}</div>
+                        <div><strong>Ախտորոշում՝</strong> ${item.diagnosis || 'Նշված չէ'}</div>
+                        <div><strong>Նշանակումներ՝</strong> ${item.prescription || 'Նշված չէ'}</div>
+                        <div class="text-[10px] text-slate-400 text-right">Արխիվացվել է՝ ${item.archivedAt}</div>
+                    </div>
+                `;
+            });
+        }
+
+        function showToast(msg, type='success') {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = msg;
+            t.classList.remove('opacity-0', 'translate-y-20', 'pointer-events-none');
+            setTimeout(() => t.classList.add('opacity-0', 'translate-y-20', 'pointer-events-none'), 3000);
+        }
+    </script>
+</body>
+</html>
